@@ -12,7 +12,7 @@ X86_SHAPES=(
     "c3-highcpu-4"
     "c4-highcpu-4"
     "n2-highcpu-2"
-#    "c3-standard-192-metal"
+    "c3-standard-192-metal"
 )
 
 ARM_SHAPES=(
@@ -28,8 +28,6 @@ X86_IMAGES=(
     "rocky-linux-8-optimized-gcp"
     "rocky-linux-9-optimized-gcp"
     "rocky-linux-10-optimized-gcp"
-    "rocky-linux-8-optimized-gcp-nvidia-570"
-    "rocky-linux-9-optimized-gcp-nvidia-570"
     "rocky-linux-8-optimized-gcp-nvidia-580"
     "rocky-linux-9-optimized-gcp-nvidia-580"
     "rocky-linux-10-optimized-gcp-nvidia-580"
@@ -45,8 +43,6 @@ ARM_IMAGES=(
     "rocky-linux-8-optimized-gcp-arm64"
     "rocky-linux-9-optimized-gcp-arm64"
     "rocky-linux-10-optimized-gcp-arm64"
-    "rocky-linux-8-optimized-gcp-nvidia-570-arm64"
-    "rocky-linux-9-optimized-gcp-nvidia-570-arm64"
     "rocky-linux-8-optimized-gcp-nvidia-580-arm64"
     "rocky-linux-9-optimized-gcp-nvidia-580-arm64"
     "rocky-linux-10-optimized-gcp-nvidia-580-arm64"
@@ -76,8 +72,6 @@ TESTS=(
 )
 
 REGIONS=(
-    "us-central1-b"
-    "us-central1-c"
     "europe-west1-b"
     "europe-west1-c"
     "europe-west1-d"
@@ -87,6 +81,7 @@ REGIONS=(
     "asia-southeast1-a"
     "asia-southeast1-b"
     "asia-southeast1-c"
+    "us-central1-c"
 )
 
 PROJECT=ciq-test-servers
@@ -117,7 +112,7 @@ function show_help() {
 SHAPES=("${X86_SHAPES[@]}")
 IMAGES=("${X86_IMAGES[@]}")
 SHAPE_ARG="-x86_shape"
-PARALLEL_RUN_COUNT=72
+PARALLEL_RUN_COUNT=20
 
 # parse arguments to override which shapes and images to test
 while [[ $# -gt 0 ]]; do
@@ -247,7 +242,7 @@ for shape in "${SHAPES[@]}"; do
                 unset 'CHECK_IMAGES[i]'
             fi
         done
-        CHECK_REGIONS=("us-central1-b" "us-central1-f")
+        CHECK_REGIONS=("us-central1-b")
         keep=(suspendresume licensevalidation loadbalancer metadata packagevalidation)
         for target in "${CHECK_TESTS[@]}"; do
             if [[ ! " ${keep[*]} " =~ " ${target} " ]]; then
@@ -281,7 +276,7 @@ for shape in "${SHAPES[@]}"; do
             done
         done
     elif [ "$shape" == "c4a-highmem-96-metal" ]; then
-        CHECK_REGIONS=("us-central1-b", "us-central1-f")
+        CHECK_REGIONS=("us-central1-b")
         # Remove tests that are known to fail or not applicable on this shape:
         #  * cvm - Switches to a different instance type, so not applicable
         #  * livemigrate - Can't migrate a metal instance
@@ -300,7 +295,13 @@ for shape in "${SHAPES[@]}"; do
             done
         done
     elif [[ "$shape" == n4a-standard* ]]; then
-        CHECK_REGIONS=("us-central1-b" "us-central1-f")
+        CHECK_REGIONS=("us-central1-b")
+    elif [[ "$shape" == c4d-standard* ]]; then
+        for i in "${!CHECK_REGIONS[@]}"; do
+            if [[ ${CHECK_REGIONS[i]} == "europe-west1-c" ]] || [[ ${CHECK_REGIONS[i]} == "europe-west1-d" ]] || [[ ${CHECK_REGIONS[i]} == "us-central1-c" ]]; then
+                unset 'CHECK_REGIONS[i]'
+            fi
+        done
     elif [[ "$shape" == n4d-standard* ]]; then
         CHECK_REGIONS=("us-central1-a" "us-central1-b" "us-central1-c" "us-east1-b" "us-east1-d" "europe-west1-c" "europe-west4-a" "europe-west4-b")
     # If shape == t2a-standard-2, remove
@@ -401,7 +402,7 @@ while /bin/true; do
         break
     fi
     echo "Waiting for jobs to finish, current count: $JOB_COUNT"
-    sleep 15
+    sleep 45
 done
 
 jobs -s
