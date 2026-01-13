@@ -8,6 +8,10 @@ X86_SHAPES=(
     "c3d-standard-4"
     "c4d-standard-4"
     "n4d-standard-2"
+    "n4-highcpu-2"
+    "c3-highcpu-4"
+    "c4-highcpu-4"
+    "n2-highcpu-2"
 #    "c3-standard-192-metal"
 )
 
@@ -235,6 +239,26 @@ for shape in "${SHAPES[@]}"; do
             fi
         done
     fi
+    # If shape is c4a metal, remove all Rocky 8 images, set region to us-central-b and us-central1-f,
+    # and remove tests that are known to fail or not applicable on this shape:
+    if [ "$shape" == "c4a-highmem-96-metal" ]; then
+        for i in "${!CHECK_IMAGES[@]}"; do
+            if [[ ${CHECK_IMAGES[i]} == rocky-linux-8* ]]; then
+                unset 'CHECK_IMAGES[i]'
+            fi
+        done
+        CHECK_REGIONS=("us-central1-b" "us-central1-f")
+        keep=(suspendresume licensevalidation loadbalancer metadata packagevalidation)
+        for target in "${CHECK_TESTS[@]}"; do
+            if [[ ! " ${keep[*]} " =~ " ${target} " ]]; then
+                for i in "${!CHECK_TESTS[@]}"; do
+                    if [[ ${CHECK_TESTS[i]} = $target ]]; then
+                        unset 'CHECK_TESTS[i]'
+                    fi
+                done
+            fi
+        done
+    fi
     # If shape == c3-standard-192-metal, limit region to europe-west1-b
     if [ "$shape" == "c3-standard-192-metal" ]; then
         #CHECK_REGIONS=("europe-west1-c", "europe-west1-b")
@@ -256,7 +280,7 @@ for shape in "${SHAPES[@]}"; do
                 fi
             done
         done
-    elif [ "$shape" == "c4a-standard-96-metal" ]; then
+    elif [ "$shape" == "c4a-highmem-96-metal" ]; then
         CHECK_REGIONS=("us-central1-b", "us-central1-f")
         # Remove tests that are known to fail or not applicable on this shape:
         #  * cvm - Switches to a different instance type, so not applicable
@@ -282,16 +306,50 @@ for shape in "${SHAPES[@]}"; do
     # If shape == t2a-standard-2, remove
     elif [[ "$shape" == t2a-standard* ]]; then
         CHECK_REGIONS=("us-central1-a" "us-central1-b" "us-central1-f" "europe-west4-a" "europe-west4-b" "europe-west4-c" "asia-southeast1-b" "asia-southeast1-c")
+    # There's never enough c4d capacity in europe-west4-b, so remove it from the list
+    elif [[ "$shape" == c4d-standard* ]]; then
+        delete=(europe-west1-b europe-west1-c europe-west1-d europe-west4-b)
+        for target in "${delete[@]}"; do
+            for i in "${!CHECK_REGIONS[@]}"; do
+                if [[ ${CHECK_REGIONS[i]} = $target ]]; then
+                    unset 'CHECK_REGIONS[i]'
+                fi
+            done
+        done
+    fi
+    if [[ "$shape" == n4-highcpu-* ]] || [[ "$shape" == c3-highcpu-* ]] || [[ "$shape" == c4-highcpu-* ]] || [[ "$shape" == n2-highcpu-* ]]; then
+        # For highcpu shapes, limit tests to network, ssh, loadbalancer, metadata, and imageboot
+        keep=(network ssh loadbalancer metadata imageboot)
+        for target in "${CHECK_TESTS[@]}"; do
+            if [[ ! " ${keep[*]} " =~ " ${target} " ]]; then
+                for i in "${!CHECK_TESTS[@]}"; do
+                    if [[ ${CHECK_TESTS[i]} = $target ]]; then
+                        unset 'CHECK_TESTS[i]'
+                    fi
+                done
+            fi
+        done
     fi
     for image in "${CHECK_IMAGES[@]}"; do
         PCOUNT=${PARALLEL_RUN_COUNT}
-        if [ "$shape" == "c3-standard-192-metal" ] || [ "$shape" == "c4a-standard-96-metal" ]; then
+        if [ "$shape" == "c3-standard-192-metal" ] || [ "$shape" == "c4a-highmem-96-metal" ]; then
             # For c3-standard-192-metal, run only one test at a time
             PCOUNT=1
-        elif [[ "$shape" == n4a-standard* ]]; then
+        elif [[ "$shape" == n4a-standard* ]] && [[ "$PCOUNT" -gt 12 ]]; then
             PCOUNT=12
         fi
         for testrun in "${CHECK_TESTS[@]}"; do
+            # For c4-standard* shapes, remove us-central1-* regions from hotattach tests due to known issues
+            if [[ "$shape" == c4-standard* ]] && [[ "$testrun" == "hotattach" ]]; then
+                delete=(us-central1-a us-central1-b us-central1-c us-central1-f)
+                for target in "${delete[@]}"; do
+                    for i in "${!CHECK_REGIONS[@]}"; do
+                        if [[ ${CHECK_REGIONS[i]} = $target ]]; then
+                            unset 'CHECK_REGIONS[i]'
+                        fi
+                    done
+                done
+            fi
             # If image doesn't contain '/', prepend 'projects/gce-ciq-images/global/images/family/'
             if [[ "$image" != *"/"* ]]; then
                 base_image="$image"
