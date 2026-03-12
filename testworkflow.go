@@ -1303,3 +1303,20 @@ func (t *TestWorkflow) skipWindowsStagingKMS(isWindows bool, instance *daisy.Ins
 func (t *TestWorkflow) IsComputeStaging() bool {
 	return t.wf.ComputeEndpoint == "https://www.googleapis.com/compute/staging_v1/"
 }
+
+// HasCustomStartupScript returns true if a custom startup script is configured.
+func (t *TestWorkflow) HasCustomStartupScript() bool {
+	return t.customStartupScriptContent != ""
+}
+
+// SkipTests records a skip reason for the given tests. Tests listed here that
+// are not executed will have the reason shown in the JUnit XML output instead
+// of the generic "disabled" message.
+func (t *TestWorkflow) SkipTests(reason string, tests ...string) {
+	if t.testSkipReasons == nil {
+		t.testSkipReasons = make(map[string]string)
+	}
+	for _, test := range tests {
+		t.testSkipReasons[test] = reason
+	}
+}
