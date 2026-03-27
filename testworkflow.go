@@ -23,6 +23,7 @@ import (
 	"io/ioutil"
 	"log"
 	"math/rand"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -1313,6 +1314,25 @@ func (t *TestWorkflow) IsComputeStaging() bool {
 // HasCustomStartupScript returns true if a custom startup script is configured.
 func (t *TestWorkflow) HasCustomStartupScript() bool {
 	return t.customStartupScriptContent != ""
+}
+
+// TestsExcluded checks if the given test names are all matched by the exclude
+// filter. This can be used in TestSetup to avoid creating VMs for tests that
+// will be skipped.
+func (t *TestWorkflow) TestsExcluded(tests ...string) bool {
+	if t.testExcludeFilter == "" {
+		return false
+	}
+	r, err := regexp.Compile(t.testExcludeFilter)
+	if err != nil {
+		return false
+	}
+	for _, test := range tests {
+		if !r.MatchString(test) {
+			return false
+		}
+	}
+	return true
 }
 
 // SkipTests records a skip reason for the given tests. Tests listed here that
