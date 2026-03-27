@@ -168,7 +168,12 @@ while [[ $# -gt 0 ]]; do
             exit 0
             ;;
         *)
-            break
+            EXTRA_ARGS+=("$1")
+            shift
+            if [[ $# -gt 0 && ! "$1" == --* ]]; then
+                EXTRA_ARGS+=("$1")
+                shift
+            fi
             ;;
     esac
 done
@@ -371,8 +376,13 @@ for shape in "${SHAPES[@]}"; do
             fi
             REGION=$(echo "${CHECK_REGIONS[@]}" | tr ' ' ',')
             echo "Running test: $testrun for image: $image with shape: $shape"
+            QUOTED_EXTRA_ARGS=""
+            for arg in "${EXTRA_ARGS[@]}"; do
+                printf -v escaped_arg '%q' "$arg"
+                QUOTED_EXTRA_ARGS+=" $escaped_arg"
+            done
             set -x
-            /bin/bash -c "docker run --rm -v $(pwd):/curpath:z -v ~/.config/gcloud/:/creds:z -e GOOGLE_APPLICATION_CREDENTIALS=/creds/application_default_credentials.json cloud-image-tests --project $PROJECT --filter \"^($testrun)$\" --zones "$REGION" --images \"$image\" ${SHAPE_ARG}=\"$shape\" --parallel_count 1 $* | tee \"${base_image}_${shape}_${testrun}.xml\"" &
+            /bin/bash -c "docker run --rm -v $(pwd):/curpath:z -v ~/.config/gcloud/:/creds:z -e GOOGLE_APPLICATION_CREDENTIALS=/creds/application_default_credentials.json cloud-image-tests --project $PROJECT --filter \"^($testrun)$\" --zones "$REGION" --images \"$image\" ${SHAPE_ARG}=\"$shape\" --parallel_count 1${QUOTED_EXTRA_ARGS} | tee \"${base_image}_${shape}_${testrun}.xml\"" &
             set +x
             # Shift REGIONS so first region is moved to the end of the array
             CHECK_REGIONS=("${CHECK_REGIONS[@]:1}" "${CHECK_REGIONS[0]}")
